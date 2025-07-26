@@ -19,5 +19,14 @@ declare module 'knex/types/tables' {
       created_at: string
       session_id: string
     }
+
+    food: {
+      id: string
+      name: string
+      portion_type: 'unit' | 'grams'
+      portion_amount: number
+      protein_per_portion: number
+      session_id: string
+    }
   }
 }

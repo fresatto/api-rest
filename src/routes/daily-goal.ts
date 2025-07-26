@@ -13,20 +13,20 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
       calories: z.number().optional(),
     })
 
-    const sessionId = request.cookies.sessionId
-
-    if (!sessionId) {
-      reply.setCookie('sessionId', randomUUID(), {
-        path: '/',
-        maxAge: 1000 * 60 * 60 * 24 * 365 * 10, // 10 anos
-      })
-    }
+    const sessionId = randomUUID()
 
     const { protein } = createDailyGoalBodySchema.parse(request.body)
+
+    reply.setCookie('sessionId', sessionId, {
+      path: '/',
+      maxAge: 1000 * 60 * 60 * 24 * 365 * 10, // 10 anos
+    })
 
     await knex('daily_goal').insert({
       protein,
       session_id: sessionId,
     })
+
+    return reply.status(201).send()
   })
 }

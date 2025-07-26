@@ -1,14 +1,14 @@
 DAILY GOAL
-- [ ] Usuário deve CADASTRAR um objetivo diário.
+- [x] Usuário deve CADASTRAR um objetivo diário.
 - [ ] Usuário deve EDITAR o objetivo diário.
 
 FOOD
-- [ ] Usuário deve poder CADASTRAR um alimento.
-- [ ] Usuário deve poder EXCLUIR um alimento.
+- [x] Usuário deve poder CADASTRAR um alimento.
+- [x] Usuário deve poder EXCLUIR um alimento.
 
 MEAL
 - [ ] Usuário deve poder CADASTRAR uma nova refeição.
-- [ ] Usuário deve poder visualizar as refeições do dia.
+- [ ] Usuário deve poder GET as refeições do dia.
 
 SUMMARY*
 - [ ] Usuário deve poder visualizar se bateu a meta ou não.
