@@ -10,5 +10,14 @@ declare module 'knex/types/tables' {
       created_at: string
       session_id?: string
     }
+
+    daily_goal: {
+      protein: number
+      carbohydrate?: number
+      fat?: number
+      calories?: number
+      created_at: string
+      session_id: string
+    }
   }
 }

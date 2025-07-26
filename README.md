@@ -1,10 +1,16 @@
-# RF
-- [x] O usuário deve poder criar uma nova transação;
-- [x] O usuário deve poder obter um resumo da sua conta;
-- [x] O usuário deve poder listar todas transações que já ocorreram;
-- [x] O usuário deve poder visualizar uma transação única;
+DAILY GOAL
+- [ ] Usuário deve CADASTRAR um objetivo diário.
+- [ ] Usuário deve EDITAR o objetivo diário.
 
-# RN
-- [x] A transação pode ser do tipo crédito que somará ao valor total, ou débito subtrairá;
-- [ ] Deve ser possível identificarmos o usuário entre as requisições;
-- [ ] O usuário só pode visualizar transações o qual ele criou;
+FOOD
+- [ ] Usuário deve poder CADASTRAR um alimento.
+- [ ] Usuário deve poder EXCLUIR um alimento.
+
+MEAL
+- [ ] Usuário deve poder CADASTRAR uma nova refeição.
+- [ ] Usuário deve poder visualizar as refeições do dia.
+
+SUMMARY*
+- [ ] Usuário deve poder visualizar se bateu a meta ou não.
+(listar todas as refeições, fazer a regra de 3 e comparar
+com o objetivo diário e retornar se bateu ou não)
