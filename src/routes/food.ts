@@ -8,6 +8,22 @@ import { checkSessionIdExists } from '../middleware/check-session-id-exists'
 export async function foodRoutes(app: FastifyInstance) {
   app.addHook('preHandler', checkSessionIdExists)
 
+  app.get('/', async (request, reply) => {
+    const { sessionId } = request.cookies
+
+    const foods = await knex('food')
+      .where('session_id', sessionId)
+      .select(
+        'id',
+        'name',
+        'portion_type',
+        'portion_amount',
+        'protein_per_portion',
+      )
+
+    return reply.status(200).send({ foods })
+  })
+
   app.post('/', async (request, reply) => {
     const createFoodBodySchema = z.object({
       name: z.string(),
