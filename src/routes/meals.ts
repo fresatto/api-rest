@@ -27,10 +27,14 @@ export async function mealsRoutes(app: FastifyInstance) {
     const mealsWithFoodDetails = meals.map((meal: any) => {
       const { id, amount, created_at } = meal
 
+      const proteinConsumed =
+        (meal.protein_per_portion * meal.amount) / meal.portion_amount
+
       return {
         id,
         amount,
         created_at,
+        proteinConsumed,
         food: {
           name: meal.name,
           portion_type: meal.portion_type,
