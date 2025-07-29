@@ -2,7 +2,6 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
 import { knex } from '../database'
-import { randomUUID } from 'node:crypto'
 
 export async function dailyGoalRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
@@ -13,38 +12,23 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
       calories: z.number().optional(),
     })
 
-    const sessionId = randomUUID()
-
     const { protein } = createDailyGoalBodySchema.parse(request.body)
-
-    reply.setCookie('sessionId', sessionId, {
-      path: '/',
-      maxAge: 1000 * 60 * 60 * 24 * 365 * 10, // 10 anos
-    })
 
     await knex('daily_goal').insert({
       protein,
-      session_id: sessionId,
     })
 
     return reply.status(201).send()
   })
 
   app.get('/', async (request, reply) => {
-    const { sessionId } = request.cookies
-
-    const dailyGoal = await knex('daily_goal')
-      .where('session_id', sessionId)
-      .first()
+    const dailyGoal = await knex('daily_goal').first()
 
     return reply.status(200).send({ dailyGoal })
   })
 
   app.get('/summary', async (request, reply) => {
-    const { sessionId } = request.cookies
-
     const allDailyMeals = await knex('meals')
-      .where('meals.session_id', sessionId)
       .andWhere(
         'meals.created_at',
         '>=',
@@ -61,9 +45,7 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
       .innerJoin('food', 'meals.food_id', 'food.id')
       .groupBy('meals.id')
 
-    const dailyGoal = await knex('daily_goal')
-      .where('session_id', sessionId)
-      .first()
+    const dailyGoal = await knex('daily_goal').first()
 
     const proteinConsumed = allDailyMeals
       .reduce((acc, meal) => {

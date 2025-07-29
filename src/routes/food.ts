@@ -3,23 +3,16 @@ import { z } from 'zod'
 
 import { knex } from '../database'
 import { randomUUID } from 'node:crypto'
-import { checkSessionIdExists } from '../middleware/check-session-id-exists'
 
 export async function foodRoutes(app: FastifyInstance) {
-  app.addHook('preHandler', checkSessionIdExists)
-
-  app.get('/', async (request, reply) => {
-    const { sessionId } = request.cookies
-
-    const foods = await knex('food')
-      .where('session_id', sessionId)
-      .select(
-        'id',
-        'name',
-        'portion_type',
-        'portion_amount',
-        'protein_per_portion',
-      )
+  app.get('/', async (_, reply) => {
+    const foods = await knex('food').select(
+      'id',
+      'name',
+      'portion_type',
+      'portion_amount',
+      'protein_per_portion',
+    )
 
     return reply.status(200).send({ foods })
   })
@@ -31,8 +24,6 @@ export async function foodRoutes(app: FastifyInstance) {
       portion_amount: z.number(),
       protein_per_portion: z.number(),
     })
-
-    const sessionId = request.cookies.sessionId
 
     const { name, portion_type, portion_amount, protein_per_portion } =
       createFoodBodySchema.parse(request.body)
@@ -47,7 +38,6 @@ export async function foodRoutes(app: FastifyInstance) {
 
     await knex('food').insert({
       ...food,
-      session_id: sessionId,
     })
 
     return reply.status(201).send(food)

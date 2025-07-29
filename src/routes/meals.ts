@@ -5,15 +5,11 @@ import { z } from 'zod'
 import { knex } from '../database'
 
 export async function mealsRoutes(app: FastifyInstance) {
-  app.get('/', async (request, reply) => {
-    const { sessionId } = request.cookies
-
+  app.get('/', async (_, reply) => {
     const meals = await knex('meals')
-      .where('meals.session_id', sessionId)
       .select([
         'meals.id',
         'meals.amount',
-        'meals.session_id',
         'meals.created_at',
         'food.name',
         'food.portion_type',
@@ -61,8 +57,6 @@ export async function mealsRoutes(app: FastifyInstance) {
       return reply.status(400).send({ message: 'Food not found' })
     }
 
-    const sessionId = request.cookies.sessionId
-
     const meal = {
       id: randomUUID(),
       food_id,
@@ -71,7 +65,6 @@ export async function mealsRoutes(app: FastifyInstance) {
 
     await knex('meals').insert({
       ...meal,
-      session_id: sessionId,
     })
 
     return reply.status(201).send()
