@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
 import { knex } from '../database'
+import { getTodayDataFilter } from '../utils/date'
 
 export async function dailyGoalRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
@@ -29,11 +30,6 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
 
   app.get('/summary', async (request, reply) => {
     const allDailyMeals = await knex('meals')
-      .andWhere(
-        'meals.created_at',
-        '>=',
-        new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-      )
       .select(
         'food.name',
         'meals.amount',
@@ -48,6 +44,7 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
     const dailyGoal = await knex('daily_goal').first()
 
     const proteinConsumed = allDailyMeals
+      .filter((meal) => getTodayDataFilter(meal.created_at))
       .reduce((acc, meal) => {
         if (meal.portion_type === 'unit') {
           return acc + meal.protein_per_portion * meal.amount
