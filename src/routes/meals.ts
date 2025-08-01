@@ -3,9 +3,14 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import { knex } from '../database'
+import { startOfDay } from 'date-fns'
+import { dateToUTC } from '../utils/date'
 
 export async function mealsRoutes(app: FastifyInstance) {
   app.get('/', async (_, reply) => {
+    const today = new Date()
+    const todayInitial = startOfDay(today)
+
     const meals = await knex('meals')
       .select([
         'meals.id',
@@ -17,28 +22,35 @@ export async function mealsRoutes(app: FastifyInstance) {
         'food.protein_per_portion',
       ])
       .innerJoin('food', 'meals.food_id', 'food.id')
+      .orderBy('meals.created_at', 'desc')
       .groupBy('meals.id')
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mealsWithFoodDetails = meals.map((meal: any) => {
-      const { id, amount, created_at } = meal
+    const mealsWithFoodDetails = meals
+      .map((meal: any) => {
+        const { id, amount, created_at } = meal
 
-      const proteinConsumed =
-        (meal.protein_per_portion * meal.amount) / meal.portion_amount
+        const proteinConsumed =
+          (meal.protein_per_portion * meal.amount) / meal.portion_amount
 
-      return {
-        id,
-        amount,
-        created_at,
-        proteinConsumed,
-        food: {
-          name: meal.name,
-          portion_type: meal.portion_type,
-          portion_amount: meal.portion_amount,
-          protein_per_portion: meal.protein_per_portion,
-        },
-      }
-    })
+        return {
+          id,
+          amount,
+          created_at,
+          proteinConsumed,
+          food: {
+            name: meal.name,
+            portion_type: meal.portion_type,
+            portion_amount: meal.portion_amount,
+            protein_per_portion: meal.protein_per_portion,
+          },
+        }
+      })
+      .filter((meal) => {
+        const utcCreatedAt = dateToUTC(meal.created_at)
+
+        return new Date(utcCreatedAt) > todayInitial
+      })
 
     return reply.status(200).send({ meals: mealsWithFoodDetails })
   })
@@ -68,5 +80,23 @@ export async function mealsRoutes(app: FastifyInstance) {
     })
 
     return reply.status(201).send()
+  })
+
+  app.delete('/:id', async (request, reply) => {
+    const deleteMealParamsSchema = z.object({
+      id: z.string(),
+    })
+
+    const { id } = deleteMealParamsSchema.parse(request.params)
+
+    const meal = await knex('meals').where('id', id).first()
+
+    if (!meal) {
+      return reply.status(404).send({ message: 'Meal not found' })
+    }
+
+    await knex('meals').where('id', id).delete()
+
+    return reply.status(204).send()
   })
 }
