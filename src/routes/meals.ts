@@ -3,13 +3,18 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import { knex } from '../database'
-import { startOfDay } from 'date-fns'
+import { startOfDay, subDays, subMonths } from 'date-fns'
 import { dateToUTC } from '../utils/date'
+import { Period } from '../@types/period'
 
 export async function mealsRoutes(app: FastifyInstance) {
-  app.get('/', async (_, reply) => {
+  app.get('/', async (request, reply) => {
+    const { period = Period.TODAY } = request.query as { period?: Period }
+
     const today = new Date()
     const todayInitial = startOfDay(today)
+    const sevenDaysAgo = subDays(today, 7)
+    const oneMonthAgo = subMonths(today, 1)
 
     const meals = await knex('meals')
       .select([
@@ -25,8 +30,8 @@ export async function mealsRoutes(app: FastifyInstance) {
       .orderBy('meals.created_at', 'desc')
       .groupBy('meals.id')
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mealsWithFoodDetails = meals
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((meal: any) => {
         const { id, amount, created_at } = meal
 
@@ -49,7 +54,16 @@ export async function mealsRoutes(app: FastifyInstance) {
       .filter((meal) => {
         const utcCreatedAt = dateToUTC(meal.created_at)
 
-        return new Date(utcCreatedAt) > todayInitial
+        switch (period) {
+          case Period.TODAY:
+            return new Date(utcCreatedAt) > todayInitial
+          case Period.LAST_7_DAYS:
+            return new Date(utcCreatedAt) > sevenDaysAgo
+          case Period.MONTH:
+            return new Date(utcCreatedAt) > oneMonthAgo
+          default:
+            return true
+        }
       })
 
     return reply.status(200).send({ meals: mealsWithFoodDetails })
