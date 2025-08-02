@@ -2,7 +2,8 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 
 import { knex } from '../database'
-import { getTodayDataFilter } from '../utils/date'
+import { DB_DATE_FORMAT } from '../utils/date'
+import { endOfDay, format, startOfDay } from 'date-fns'
 
 export async function dailyGoalRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
@@ -22,13 +23,17 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
     return reply.status(201).send()
   })
 
-  app.get('/', async (request, reply) => {
+  app.get('/', async (_, reply) => {
     const dailyGoal = await knex('daily_goal').first()
 
     return reply.status(200).send({ dailyGoal })
   })
 
   app.get('/summary', async (request, reply) => {
+    const today = new Date()
+    const todayInitial = format(startOfDay(today), DB_DATE_FORMAT)
+    const todayEnd = format(endOfDay(today), DB_DATE_FORMAT)
+
     const allDailyMeals = await knex('meals')
       .select(
         'food.name',
@@ -39,12 +44,12 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
         'meals.created_at',
       )
       .innerJoin('food', 'meals.food_id', 'food.id')
+      .whereBetween('meals.created_at', [todayInitial, todayEnd])
       .groupBy('meals.id')
 
     const dailyGoal = await knex('daily_goal').first()
 
     const proteinConsumed = allDailyMeals
-      .filter((meal) => getTodayDataFilter(meal.created_at))
       .reduce((acc, meal) => {
         if (meal.portion_type === 'unit') {
           return acc + meal.protein_per_portion * meal.amount
