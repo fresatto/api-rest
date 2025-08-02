@@ -1,5 +1,6 @@
 export enum Period {
   TODAY = '1',
-  LAST_7_DAYS = '2',
-  MONTH = '3',
+  YESTERDAY = '2',
+  LAST_7_DAYS = '3',
+  MONTH = '4',
 }

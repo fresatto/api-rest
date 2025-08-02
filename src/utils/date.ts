@@ -1,6 +1,8 @@
 import { startOfDay } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
 
+export const DB_DATE_FORMAT = 'yyyy-MM-dd HH:mm:ss'
+
 export function dateToUTC(date: string) {
   return date.replace(' ', 'T') + 'Z'
 }

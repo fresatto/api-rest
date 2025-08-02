@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import { knex } from '../database'
-import { startOfDay, subDays, subMonths } from 'date-fns'
-import { dateToUTC } from '../utils/date'
+import { endOfDay, startOfDay, subDays, subMonths } from 'date-fns'
+import { format } from 'date-fns-tz'
+import { DB_DATE_FORMAT } from '../utils/date'
 import { Period } from '../@types/period'
 
 export async function mealsRoutes(app: FastifyInstance) {
@@ -12,9 +13,18 @@ export async function mealsRoutes(app: FastifyInstance) {
     const { period = Period.TODAY } = request.query as { period?: Period }
 
     const today = new Date()
-    const todayInitial = startOfDay(today)
+    const todayInitial = format(startOfDay(today), DB_DATE_FORMAT)
+    const todayEnd = format(endOfDay(today), DB_DATE_FORMAT)
+
+    const yesterday = subDays(today, 1)
+    const yesterdayInitial = format(startOfDay(yesterday), DB_DATE_FORMAT)
+    const yesterdayEnd = format(endOfDay(yesterday), DB_DATE_FORMAT)
+
     const sevenDaysAgo = subDays(today, 7)
+    const sevenDaysAgoInitial = format(startOfDay(sevenDaysAgo), DB_DATE_FORMAT)
+
     const oneMonthAgo = subMonths(today, 1)
+    const oneMonthAgoInitial = format(startOfDay(oneMonthAgo), DB_DATE_FORMAT)
 
     const meals = await knex('meals')
       .select([
@@ -27,8 +37,31 @@ export async function mealsRoutes(app: FastifyInstance) {
         'food.protein_per_portion',
       ])
       .innerJoin('food', 'meals.food_id', 'food.id')
-      .orderBy('meals.created_at', 'desc')
-      .groupBy('meals.id')
+      .where((builder) => {
+        switch (period) {
+          case Period.YESTERDAY:
+            return builder.whereBetween('meals.created_at', [
+              yesterdayInitial,
+              yesterdayEnd,
+            ])
+          case Period.LAST_7_DAYS:
+            return builder.whereBetween('meals.created_at', [
+              sevenDaysAgoInitial,
+              todayEnd,
+            ])
+          case Period.MONTH:
+            return builder.whereBetween('meals.created_at', [
+              oneMonthAgoInitial,
+              todayEnd,
+            ])
+          default:
+            return builder.whereBetween('meals.created_at', [
+              todayInitial,
+              todayEnd,
+            ])
+        }
+      })
+      .orderBy('meals.created_at', 'asc')
 
     const mealsWithFoodDetails = meals
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,20 +82,6 @@ export async function mealsRoutes(app: FastifyInstance) {
             portion_amount: meal.portion_amount,
             protein_per_portion: meal.protein_per_portion,
           },
-        }
-      })
-      .filter((meal) => {
-        const utcCreatedAt = dateToUTC(meal.created_at)
-
-        switch (period) {
-          case Period.TODAY:
-            return new Date(utcCreatedAt) > todayInitial
-          case Period.LAST_7_DAYS:
-            return new Date(utcCreatedAt) > sevenDaysAgo
-          case Period.MONTH:
-            return new Date(utcCreatedAt) > oneMonthAgo
-          default:
-            return true
         }
       })
 
