@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import { knex } from '../database'
-import { endOfDay, startOfDay, subDays, subMonths } from 'date-fns'
+import { addHours, endOfDay, startOfDay, subDays, subMonths } from 'date-fns'
 import { format } from 'date-fns-tz'
 import { DB_DATE_FORMAT } from '../utils/date'
 import { Period } from '../@types/period'
@@ -13,8 +13,8 @@ export async function mealsRoutes(app: FastifyInstance) {
     const { period = Period.TODAY } = request.query as { period?: Period }
 
     const today = new Date()
-    const todayInitial = format(startOfDay(today), DB_DATE_FORMAT)
-    const todayEnd = format(endOfDay(today), DB_DATE_FORMAT)
+    const todayInitial = format(addHours(startOfDay(today), 3), DB_DATE_FORMAT)
+    const todayEnd = format(addHours(endOfDay(today), 3), DB_DATE_FORMAT)
 
     const yesterday = subDays(today, 1)
     const yesterdayInitial = format(startOfDay(yesterday), DB_DATE_FORMAT)
@@ -25,6 +25,9 @@ export async function mealsRoutes(app: FastifyInstance) {
 
     const oneMonthAgo = subMonths(today, 1)
     const oneMonthAgoInitial = format(startOfDay(oneMonthAgo), DB_DATE_FORMAT)
+
+    // TODO: Remover depois de publicar
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
     const meals = await knex('meals')
       .select([
@@ -69,7 +72,9 @@ export async function mealsRoutes(app: FastifyInstance) {
         const { id, amount, created_at } = meal
 
         const proteinConsumed =
-          (meal.protein_per_portion * meal.amount) / meal.portion_amount
+          meal.portion_type === 'unit'
+            ? meal.protein_per_portion * meal.amount
+            : (meal.protein_per_portion * meal.amount) / meal.portion_amount
 
         return {
           id,

@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { knex } from '../database'
 import { DB_DATE_FORMAT } from '../utils/date'
-import { endOfDay, format, startOfDay } from 'date-fns'
+import { endOfDay, format, startOfDay, addHours } from 'date-fns'
 
 export async function dailyGoalRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
@@ -29,10 +29,10 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
     return reply.status(200).send({ dailyGoal })
   })
 
-  app.get('/summary', async (request, reply) => {
+  app.get('/summary', async (_, reply) => {
     const today = new Date()
-    const todayInitial = format(startOfDay(today), DB_DATE_FORMAT)
-    const todayEnd = format(endOfDay(today), DB_DATE_FORMAT)
+    const todayInitial = format(addHours(startOfDay(today), 3), DB_DATE_FORMAT)
+    const todayEnd = format(addHours(endOfDay(today), 3), DB_DATE_FORMAT)
 
     const allDailyMeals = await knex('meals')
       .select(
