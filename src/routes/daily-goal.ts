@@ -7,20 +7,32 @@ import { endOfDay, format, startOfDay, addHours } from 'date-fns'
 
 export async function dailyGoalRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
-    const createDailyGoalBodySchema = z.object({
-      protein: z.number(),
-      carbohydrate: z.number().optional(),
-      fat: z.number().optional(),
-      calories: z.number().optional(),
-    })
+    try {
+      const createDailyGoalBodySchema = z.object({
+        protein: z.number(),
+        carbohydrate: z.number().optional(),
+        fat: z.number().optional(),
+        calories: z.number().optional(),
+      })
 
-    const { protein } = createDailyGoalBodySchema.parse(request.body)
+      const { protein } = createDailyGoalBodySchema.parse(request.body)
 
-    await knex('daily_goal').insert({
-      protein,
-    })
+      await knex('daily_goal').insert({
+        protein,
+      })
 
-    return reply.status(201).send()
+      return reply.status(201).send()
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({
+          error: JSON.parse(error.message),
+        })
+      }
+
+      return reply.status(500).send({
+        error: 'Internal server error',
+      })
+    }
   })
 
   app.get('/', async (_, reply) => {
