@@ -1,6 +1,23 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Knex } from 'knex'
 
+export type Meal = {
+  id: string
+  food_id: string
+  amount: number
+  created_at: string
+}
+
+export type Food = {
+  id: string
+  name: string
+  portion_type: 'unit' | 'grams'
+  portion_amount: number
+  protein_per_portion: number
+}
+
+export type CombinedMealWithFood = Meal & Food
+
 declare module 'knex/types/tables' {
   export interface Tables {
     transactions: {
@@ -20,13 +37,8 @@ declare module 'knex/types/tables' {
       session_id: string
     }
 
-    food: {
-      id: string
-      name: string
-      portion_type: 'unit' | 'grams'
-      portion_amount: number
-      protein_per_portion: number
-      session_id: string
-    }
+    food: Food
+
+    meals: Meal
   }
 }

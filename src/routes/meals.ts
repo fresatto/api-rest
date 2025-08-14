@@ -7,6 +7,7 @@ import { knex } from '../database'
 import { addHours, endOfDay, startOfDay, subDays, subMonths } from 'date-fns'
 import { DB_DATE_FORMAT } from '../utils/date'
 import { Period } from '../@types/period'
+import { getProteinConsumedByMeal } from '../utils/meals'
 
 export async function mealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
@@ -90,10 +91,7 @@ export async function mealsRoutes(app: FastifyInstance) {
         .map((meal: any) => {
           const { id, amount, created_at } = meal
 
-          const proteinConsumed =
-            meal.portion_type === 'unit'
-              ? meal.protein_per_portion * meal.amount
-              : (meal.protein_per_portion * meal.amount) / meal.portion_amount
+          const proteinConsumed = getProteinConsumedByMeal(meal)
 
           return {
             id,
