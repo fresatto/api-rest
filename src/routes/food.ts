@@ -64,6 +64,16 @@ export async function foodRoutes(app: FastifyInstance) {
 
     const { id } = deleteFoodParamsSchema.parse(request.params)
 
+    const registeredMealWithFoodId = await knex('meals')
+      .where('food_id', id)
+      .first()
+
+    if (registeredMealWithFoodId) {
+      return reply.status(401).send({
+        error: 'Alimento já registrado em uma refeição.',
+      })
+    }
+
     await knex('food').where('id', id).delete()
 
     return reply.status(204).send()
