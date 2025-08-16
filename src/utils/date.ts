@@ -1,5 +1,5 @@
 import { addHours, format, startOfDay } from 'date-fns'
-import { toZonedTime, format as formatTZ, formatInTimeZone } from 'date-fns-tz'
+import { toZonedTime } from 'date-fns-tz'
 
 export const DB_DATE_FORMAT = 'yyyy-MM-dd HH:mm:ss'
 

@@ -32,8 +32,6 @@ export async function weekProgressRoutes(app: FastifyInstance) {
 
     const dailyGoal = await knex('daily_goal').first()
 
-    console.log(weekProgress)
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const groupedByDay = weekProgress.reduce(
       (acc, meal: any) => {

@@ -74,7 +74,6 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
       )
       .innerJoin('food', 'meals.food_id', 'food.id')
       .whereBetween('meals.created_at', [todayInitial, todayEnd])
-      .groupBy('meals.id')
 
     const dailyGoal = await knex('daily_goal').first()
 
