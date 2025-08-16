@@ -1,9 +1,9 @@
-import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
+import { FastifyInstance } from 'fastify'
+import { endOfDay, startOfDay } from 'date-fns'
 
 import { knex } from '../database'
-import { DB_DATE_FORMAT } from '../utils/date'
-import { endOfDay, format, startOfDay, addHours } from 'date-fns'
+import { getDateToCompare } from '../utils/date'
 
 export async function dailyGoalRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
@@ -59,8 +59,9 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
 
   app.get('/summary', async (_, reply) => {
     const today = new Date()
-    const todayInitial = format(addHours(startOfDay(today), 3), DB_DATE_FORMAT)
-    const todayEnd = format(addHours(endOfDay(today), 3), DB_DATE_FORMAT)
+
+    const todayInitial = getDateToCompare(startOfDay(today))
+    const todayEnd = getDateToCompare(endOfDay(today))
 
     const allDailyMeals = await knex('meals')
       .select(

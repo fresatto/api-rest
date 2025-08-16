@@ -1,11 +1,10 @@
-import { format } from 'date-fns-tz'
 import { FastifyInstance } from 'fastify'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import { knex } from '../database'
-import { addHours, endOfDay, startOfDay, subDays, subMonths } from 'date-fns'
-import { DB_DATE_FORMAT } from '../utils/date'
+import { endOfDay, startOfDay, subDays, subMonths } from 'date-fns'
+import { getDateToCompare } from '../utils/date'
 import { Period } from '../@types/period'
 import { getProteinConsumedByMeal } from '../utils/meals'
 
@@ -27,27 +26,19 @@ export async function mealsRoutes(app: FastifyInstance) {
       const { period } = paramsSchema.parse(request.query)
 
       const today = new Date()
-      const todayInitial = format(
-        addHours(startOfDay(today), 3),
-        DB_DATE_FORMAT,
-      )
-      const todayEnd = format(addHours(endOfDay(today), 3), DB_DATE_FORMAT)
+
+      const todayInitial = getDateToCompare(startOfDay(today))
+      const todayEnd = getDateToCompare(endOfDay(today))
 
       const yesterday = subDays(today, 1)
-      const yesterdayInitial = format(startOfDay(yesterday), DB_DATE_FORMAT)
-      const yesterdayEnd = format(endOfDay(yesterday), DB_DATE_FORMAT)
+      const yesterdayInitial = getDateToCompare(startOfDay(yesterday))
+      const yesterdayEnd = getDateToCompare(endOfDay(yesterday))
 
       const sevenDaysAgo = subDays(today, 7)
-      const sevenDaysAgoInitial = format(
-        startOfDay(sevenDaysAgo),
-        DB_DATE_FORMAT,
-      )
+      const sevenDaysAgoInitial = getDateToCompare(startOfDay(sevenDaysAgo))
 
       const oneMonthAgo = subMonths(today, 1)
-      const oneMonthAgoInitial = format(startOfDay(oneMonthAgo), DB_DATE_FORMAT)
-
-      // TODO: Remover depois de publicar
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const oneMonthAgoInitial = getDateToCompare(startOfDay(oneMonthAgo))
 
       const meals = await knex('meals')
         .select([

@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify'
 import { knex } from '../database'
-import { addHours, endOfWeek, format, startOfWeek, subHours } from 'date-fns'
-import { DB_DATE_FORMAT } from '../utils/date'
+import { endOfWeek, format, startOfWeek, subHours } from 'date-fns'
+import { getDateToCompare } from '../utils/date'
 import { getProteinConsumedByMeal } from '../utils/meals'
 
 type WeekProgress = Record<
@@ -14,8 +14,8 @@ export async function weekProgressRoutes(app: FastifyInstance) {
     const weekStart = startOfWeek(new Date())
     const weekEnd = endOfWeek(new Date())
 
-    const formattedWeekStart = format(addHours(weekStart, 3), DB_DATE_FORMAT)
-    const formattedWeekEnd = format(addHours(weekEnd, 3), DB_DATE_FORMAT)
+    const formattedWeekStart = getDateToCompare(weekStart)
+    const formattedWeekEnd = getDateToCompare(weekEnd)
 
     const weekProgress = await knex('meals')
       .select([
