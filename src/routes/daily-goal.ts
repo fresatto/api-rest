@@ -17,6 +17,22 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
 
       const { protein } = createDailyGoalBodySchema.parse(request.body)
 
+      const dailyGoal = await knex('daily_goal').first()
+
+      if (dailyGoal) {
+        await knex('daily_goal')
+          .where({
+            protein: dailyGoal.protein,
+            created_at: dailyGoal.created_at,
+          })
+          .update({ protein })
+
+        return reply.status(201).send({
+          message: 'Daily goal updated',
+          dailyGoal,
+        })
+      }
+
       await knex('daily_goal').insert({
         protein,
       })
