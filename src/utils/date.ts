@@ -26,7 +26,7 @@ export function getDateToCompare(date: string | Date): string {
 
   //  Postgres date
   if (isISODate) {
-    return formatInTimeZone(new Date(date), 'UTC', DB_DATE_FORMAT)
+    return date
   }
 
   // SQLite date
