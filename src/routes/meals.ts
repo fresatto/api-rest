@@ -1,115 +1,48 @@
-import { FastifyInstance } from 'fastify'
-import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
+import { FastifyInstance } from 'fastify'
+
+import { randomUUID } from 'node:crypto'
 
 import { knex } from '../database'
-import { endOfDay, startOfDay, subDays, subMonths } from 'date-fns'
-import { getDateToCompare } from '../utils/date'
-import { Period } from '../@types/period'
 import { getProteinConsumedByMeal } from '../utils/meals'
 
 export async function mealsRoutes(app: FastifyInstance) {
-  app.get('/', async (request, reply) => {
-    const paramsSchema = z.object({
-      period: z
-        .enum([
-          Period.TODAY,
-          Period.YESTERDAY,
-          Period.LAST_7_DAYS,
-          Period.MONTH,
-        ])
-        .optional()
-        .default(Period.TODAY),
-    })
+  app.get('/', async (_, reply) => {
+    const meals = await knex('meals')
+      .select([
+        'meals.id',
+        'meals.amount',
+        'meals.created_at',
+        'food.name',
+        'food.portion_type',
+        'food.portion_amount',
+        'food.protein_per_portion',
+      ])
+      .innerJoin('food', 'meals.food_id', 'food.id')
+      .orderBy('meals.created_at', 'asc')
 
-    try {
-      const { period } = paramsSchema.parse(request.query)
+    const mealsWithFoodDetails = meals
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((meal: any) => {
+        const { id, amount, created_at } = meal
 
-      const today = new Date()
+        const proteinConsumed = getProteinConsumedByMeal(meal)
 
-      const todayInitial = getDateToCompare(startOfDay(today))
-      const todayEnd = getDateToCompare(endOfDay(today))
-
-      const yesterday = subDays(today, 1)
-      const yesterdayInitial = getDateToCompare(startOfDay(yesterday))
-      const yesterdayEnd = getDateToCompare(endOfDay(yesterday))
-
-      const sevenDaysAgo = subDays(today, 7)
-      const sevenDaysAgoInitial = getDateToCompare(startOfDay(sevenDaysAgo))
-
-      const oneMonthAgo = subMonths(today, 1)
-      const oneMonthAgoInitial = getDateToCompare(startOfDay(oneMonthAgo))
-
-      const meals = await knex('meals')
-        .select([
-          'meals.id',
-          'meals.amount',
-          'meals.created_at',
-          'food.name',
-          'food.portion_type',
-          'food.portion_amount',
-          'food.protein_per_portion',
-        ])
-        .innerJoin('food', 'meals.food_id', 'food.id')
-        .where((builder) => {
-          switch (period) {
-            case Period.YESTERDAY:
-              return builder.whereBetween('meals.created_at', [
-                yesterdayInitial,
-                yesterdayEnd,
-              ])
-            case Period.LAST_7_DAYS:
-              return builder.whereBetween('meals.created_at', [
-                sevenDaysAgoInitial,
-                todayEnd,
-              ])
-            case Period.MONTH:
-              return builder.whereBetween('meals.created_at', [
-                oneMonthAgoInitial,
-                todayEnd,
-              ])
-            default:
-              return builder.whereBetween('meals.created_at', [
-                todayInitial,
-                todayEnd,
-              ])
-          }
-        })
-        .orderBy('meals.created_at', 'asc')
-
-      const mealsWithFoodDetails = meals
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((meal: any) => {
-          const { id, amount, created_at } = meal
-
-          const proteinConsumed = getProteinConsumedByMeal(meal)
-
-          return {
-            id,
-            amount,
-            created_at,
-            proteinConsumed,
-            food: {
-              name: meal.name,
-              portion_type: meal.portion_type,
-              portion_amount: meal.portion_amount,
-              protein_per_portion: meal.protein_per_portion,
-            },
-          }
-        })
-
-      return reply.status(200).send({ meals: mealsWithFoodDetails })
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return reply.status(400).send({
-          error: JSON.parse(error.message),
-        })
-      }
-
-      return reply.status(500).send({
-        error: 'Internal server error',
+        return {
+          id,
+          amount,
+          created_at,
+          proteinConsumed,
+          food: {
+            name: meal.name,
+            portion_type: meal.portion_type,
+            portion_amount: meal.portion_amount,
+            protein_per_portion: meal.protein_per_portion,
+          },
+        }
       })
-    }
+
+    return reply.status(200).send({ meals: mealsWithFoodDetails })
   })
 
   app.post('/', async (request, reply) => {
