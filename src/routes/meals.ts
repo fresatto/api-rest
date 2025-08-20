@@ -19,7 +19,7 @@ export async function mealsRoutes(app: FastifyInstance) {
 
       const { startDate } = schema.parse(request.query)
 
-      const date = startOfDay(new Date(`${startDate} 00:00:00`))
+      const date = startOfDay(new Date(`${startDate}`))
 
       const initialDate = formatInTimeZone(
         date,
