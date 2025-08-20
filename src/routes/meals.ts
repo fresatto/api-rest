@@ -5,44 +5,79 @@ import { randomUUID } from 'node:crypto'
 
 import { knex } from '../database'
 import { getProteinConsumedByMeal } from '../utils/meals'
+import { addHours, startOfDay } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
 
 export async function mealsRoutes(app: FastifyInstance) {
-  app.get('/', async (_, reply) => {
-    const meals = await knex('meals')
-      .select([
-        'meals.id',
-        'meals.amount',
-        'meals.created_at',
-        'food.name',
-        'food.portion_type',
-        'food.portion_amount',
-        'food.protein_per_portion',
-      ])
-      .innerJoin('food', 'meals.food_id', 'food.id')
-      .orderBy('meals.created_at', 'asc')
-
-    const mealsWithFoodDetails = meals
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((meal: any) => {
-        const { id, amount, created_at } = meal
-
-        const proteinConsumed = getProteinConsumedByMeal(meal)
-
-        return {
-          id,
-          amount,
-          created_at,
-          proteinConsumed,
-          food: {
-            name: meal.name,
-            portion_type: meal.portion_type,
-            portion_amount: meal.portion_amount,
-            protein_per_portion: meal.protein_per_portion,
-          },
-        }
+  app.get('/', async (request, reply) => {
+    try {
+      const schema = z.object({
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
+          error: 'Invalid date format. Please use YYYY-MM-DD format.',
+        }),
       })
 
-    return reply.status(200).send({ meals: mealsWithFoodDetails })
+      const { startDate } = schema.parse(request.query)
+
+      const date = startOfDay(new Date(`${startDate} 00:00:00`))
+
+      const initialDate = formatInTimeZone(
+        date,
+        'UTC',
+        'yyyy-MM-dd HH:mm:ss.SSS',
+      )
+
+      const endDate = formatInTimeZone(
+        addHours(date, 24),
+        'UTC',
+        'yyyy-MM-dd HH:mm:ss.SSS',
+      )
+
+      const meals = await knex('meals')
+        .select([
+          'meals.id',
+          'meals.amount',
+          'meals.created_at',
+          'food.name',
+          'food.portion_type',
+          'food.portion_amount',
+          'food.protein_per_portion',
+        ])
+        .innerJoin('food', 'meals.food_id', 'food.id')
+        .whereBetween('meals.created_at', [initialDate, endDate])
+        .orderBy('meals.created_at', 'asc')
+
+      const mealsWithFoodDetails = meals
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((meal: any) => {
+          const { id, amount, created_at } = meal
+
+          const proteinConsumed = getProteinConsumedByMeal(meal)
+
+          return {
+            id,
+            amount,
+            created_at,
+            proteinConsumed,
+            food: {
+              name: meal.name,
+              portion_type: meal.portion_type,
+              portion_amount: meal.portion_amount,
+              protein_per_portion: meal.protein_per_portion,
+            },
+          }
+        })
+
+      return reply.status(200).send({ meals: mealsWithFoodDetails })
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({
+          error: JSON.parse(error.message)[0].message,
+        })
+      }
+
+      return reply.status(500).send({ message: 'Internal server error' })
+    }
   })
 
   app.post('/', async (request, reply) => {
