@@ -23,13 +23,13 @@ export async function mealsRoutes(app: FastifyInstance) {
 
       const initialDate = formatInTimeZone(
         date,
-        'UTC',
+        'America/Sao_Paulo',
         'yyyy-MM-dd HH:mm:ss.SSS',
       )
 
       const endDate = formatInTimeZone(
         addHours(date, 24),
-        'UTC',
+        'America/Sao_Paulo',
         'yyyy-MM-dd HH:mm:ss.SSS',
       )
 
