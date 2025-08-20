@@ -33,6 +33,8 @@ export async function mealsRoutes(app: FastifyInstance) {
         'yyyy-MM-dd HH:mm:ss.SSS',
       )
 
+      console.log({ initialDate, endDate })
+
       const meals = await knex('meals')
         .select([
           'meals.id',
