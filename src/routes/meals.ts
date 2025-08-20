@@ -8,6 +8,10 @@ import { getProteinConsumedByMeal } from '../utils/meals'
 import { addHours, startOfDay } from 'date-fns'
 import { formatInTimeZone } from 'date-fns-tz'
 
+const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+console.log({ timezone })
+
 export async function mealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
     try {
@@ -33,7 +37,7 @@ export async function mealsRoutes(app: FastifyInstance) {
         'yyyy-MM-dd HH:mm:ss.SSS',
       )
 
-      console.log({ initialDate, endDate })
+      console.log({ timezone })
 
       const meals = await knex('meals')
         .select([
