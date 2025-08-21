@@ -6,11 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { knex } from '../database'
 import { getProteinConsumedByMeal } from '../utils/meals'
 import { addHours, startOfDay } from 'date-fns'
-import { formatInTimeZone } from 'date-fns-tz'
-
-const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-
-console.log({ timezone })
+import { toZonedTime } from 'date-fns-tz'
 
 export async function mealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
@@ -19,25 +15,20 @@ export async function mealsRoutes(app: FastifyInstance) {
         startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
           error: 'Invalid date format. Please use YYYY-MM-DD format.',
         }),
+        timezone: z.string({
+          error: 'Invalid timezone. Please use a valid timezone.',
+        }),
       })
 
-      const { startDate } = schema.parse(request.query)
+      const { startDate, timezone } = schema.parse(request.query)
 
-      const date = startOfDay(new Date(`${startDate}`))
+      const date = new Date(`${startDate} 00:00:00`)
+      const startOfDate = startOfDay(date)
 
-      const initialDate = formatInTimeZone(
-        date,
-        'America/Sao_Paulo',
-        'yyyy-MM-dd HH:mm:ss.SSS',
-      )
+      const utcInitialDate = toZonedTime(startOfDate, timezone)
+      const utcEndDate = toZonedTime(addHours(startOfDate, 24), timezone)
 
-      const endDate = formatInTimeZone(
-        addHours(date, 24),
-        'America/Sao_Paulo',
-        'yyyy-MM-dd HH:mm:ss.SSS',
-      )
-
-      console.log({ timezone })
+      console.log({ utcInitialDate, utcEndDate })
 
       const meals = await knex('meals')
         .select([
@@ -50,7 +41,7 @@ export async function mealsRoutes(app: FastifyInstance) {
           'food.protein_per_portion',
         ])
         .innerJoin('food', 'meals.food_id', 'food.id')
-        .whereBetween('meals.created_at', [initialDate, endDate])
+        .whereBetween('meals.created_at', [utcInitialDate, utcEndDate])
         .orderBy('meals.created_at', 'asc')
 
       const mealsWithFoodDetails = meals
