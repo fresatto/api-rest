@@ -22,13 +22,14 @@ export async function mealsRoutes(app: FastifyInstance) {
 
       const { startDate, timezone } = schema.parse(request.query)
 
-      const date = new Date(`${startDate} 00:00:00`)
+      const date = toZonedTime(startDate, timezone)
+
       const startOfDate = startOfDay(date)
 
       const utcInitialDate = toZonedTime(startOfDate, timezone)
       const utcEndDate = toZonedTime(addHours(startOfDate, 24), timezone)
 
-      console.log({ date, startOfDate, utcInitialDate, utcEndDate })
+      console.log({ date, startOfDate, utcInitialDate, utcEndDate, timezone })
 
       const meals = await knex('meals')
         .select([
