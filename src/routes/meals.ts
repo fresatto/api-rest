@@ -5,8 +5,8 @@ import { randomUUID } from 'node:crypto'
 
 import { knex } from '../database'
 import { getProteinConsumedByMeal } from '../utils/meals'
-import { addHours, startOfDay } from 'date-fns'
-import { toZonedTime } from 'date-fns-tz'
+import { addHours, startOfDay, parseISO } from 'date-fns'
+import { fromZonedTime } from 'date-fns-tz'
 
 export async function mealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
@@ -22,14 +22,22 @@ export async function mealsRoutes(app: FastifyInstance) {
 
       const { startDate, timezone } = schema.parse(request.query)
 
-      const date = toZonedTime(startDate, timezone)
+      // Interpretamos a data como midnight no timezone especificado
+      const dateString = `${startDate}T00:00:00`
+      const localDate = parseISO(dateString)
+      const startOfDate = startOfDay(localDate)
 
-      const startOfDate = startOfDay(date)
+      // Convertemos para UTC considerando o timezone
+      const utcInitialDate = fromZonedTime(startOfDate, timezone)
+      const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
 
-      const utcInitialDate = toZonedTime(startOfDate, timezone)
-      const utcEndDate = toZonedTime(addHours(startOfDate, 24), timezone)
-
-      console.log({ date, startOfDate, utcInitialDate, utcEndDate, timezone })
+      console.log({
+        date: localDate,
+        startOfDate,
+        utcInitialDate,
+        utcEndDate,
+        timezone,
+      })
 
       const meals = await knex('meals')
         .select([
