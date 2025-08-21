@@ -2,6 +2,9 @@
   "name": "my-daily-diet-api",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": ">=20.19.2 <20.19.3"
+  },
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "knex": "node --import tsx ./node_modules/.bin/knex",
