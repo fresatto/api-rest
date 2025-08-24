@@ -31,9 +31,35 @@ export async function mealsRoutes(app: FastifyInstance) {
       const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
 
       const meals = await knex('meals')
-        .select('*')
-        .whereBetween('meals.created_at', [utcInitialDate, utcEndDate])
+        .select(
+          'meals.id',
+          'meals.name',
+          'meals.created_at',
+          knex.raw(`
+            COALESCE(
+              JSON_AGG(
+                CASE 
+                  WHEN food.id IS NOT NULL THEN
+                    JSON_BUILD_OBJECT(
+                      'food_id', food.id,
+                      'food_name', food.name,
+                      'portion_type', food.portion_type,
+                      'portion_amount', food.portion_amount,
+                      'protein_per_portion', food.protein_per_portion,
+                      'amount', meal_foods.amount
+                    )
+                  ELSE NULL
+                END
+              ) FILTER (WHERE food.id IS NOT NULL),
+              '[]'::json
+            ) as items
+          `),
+        )
+        .leftJoin('meal_foods', 'meals.id', 'meal_foods.meal_id')
+        .leftJoin('food', 'meal_foods.food_id', 'food.id')
+        .groupBy('meals.id', 'meals.name', 'meals.created_at')
         .orderBy('meals.created_at', 'asc')
+        .whereBetween('meals.created_at', [utcInitialDate, utcEndDate])
 
       return reply.status(200).send({ meals })
     } catch (error) {
@@ -43,7 +69,9 @@ export async function mealsRoutes(app: FastifyInstance) {
         })
       }
 
-      return reply.status(500).send({ message: 'Internal server error' })
+      return reply
+        .status(500)
+        .send({ message: 'Internal server error' + error })
     }
   })
 
