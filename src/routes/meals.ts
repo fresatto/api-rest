@@ -46,13 +46,32 @@ export async function mealsRoutes(app: FastifyInstance) {
                       'portion_type', food.portion_type,
                       'portion_amount', food.portion_amount,
                       'protein_per_portion', food.protein_per_portion,
-                      'amount', meal_foods.amount
+                      'amount', meal_foods.amount,
+                      'calculated_protein', ROUND(
+                        (food.protein_per_portion * meal_foods.amount / food.portion_amount)::numeric, 
+                        2
+                      )
                     )
                   ELSE NULL
                 END
               ) FILTER (WHERE food.id IS NOT NULL),
               '[]'::json
             ) as items
+          `),
+          knex.raw(`
+            COALESCE(
+              ROUND(
+                SUM(
+                  CASE 
+                    WHEN food.id IS NOT NULL THEN 
+                      (food.protein_per_portion * meal_foods.amount / food.portion_amount)
+                    ELSE 0 
+                  END
+                )::numeric, 
+                2
+              ), 
+              0
+            ) as total_protein
           `),
         )
         .leftJoin('meal_foods', 'meals.id', 'meal_foods.meal_id')
