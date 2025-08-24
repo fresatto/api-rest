@@ -79,30 +79,32 @@ export async function mealsRoutes(app: FastifyInstance) {
   })
 
   app.post('/', async (request, reply) => {
-    const createMealBodySchema = z.object({
-      food_id: z.string(),
-      amount: z.number(),
-    })
+    try {
+      const createMealBodySchema = z.object({
+        name: z.string('name is required').min(1, 'name is required'),
+      })
 
-    const { food_id, amount } = createMealBodySchema.parse(request.body)
+      const { name } = createMealBodySchema.parse(request.body)
 
-    const food = await knex('food').where('id', food_id).first()
+      const meal = await knex('meals')
+        .insert({
+          id: randomUUID(),
+          name,
+        })
+        .returning('*')
 
-    if (!food) {
-      return reply.status(400).send({ message: 'Food not found' })
+      return reply.status(201).send(meal)
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({
+          error: JSON.parse(error.message)[0].message,
+        })
+      }
+
+      return reply
+        .status(500)
+        .send({ message: 'Internal server error' + error })
     }
-
-    const meal = {
-      id: randomUUID(),
-      food_id,
-      amount,
-    }
-
-    await knex('meals').insert({
-      ...meal,
-    })
-
-    return reply.status(201).send()
   })
 
   app.delete('/:id', async (request, reply) => {

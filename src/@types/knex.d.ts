@@ -3,8 +3,7 @@ import { Knex } from 'knex'
 
 export type Meal = {
   id: string
-  food_id: string
-  amount: number
+  name: string
   created_at: string
 }
 
