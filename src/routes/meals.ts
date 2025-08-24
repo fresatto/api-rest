@@ -31,14 +31,6 @@ export async function mealsRoutes(app: FastifyInstance) {
       const utcInitialDate = fromZonedTime(startOfDate, timezone)
       const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
 
-      console.log({
-        date: localDate,
-        startOfDate,
-        utcInitialDate,
-        utcEndDate,
-        timezone,
-      })
-
       const meals = await knex('meals')
         .select([
           'meals.id',

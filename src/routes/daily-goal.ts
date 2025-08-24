@@ -1,9 +1,9 @@
 import { z } from 'zod'
 import { FastifyInstance } from 'fastify'
-import { endOfDay, startOfDay } from 'date-fns'
+import { addHours, parseISO, startOfDay } from 'date-fns'
 
 import { knex } from '../database'
-import { getDateToCompare } from '../utils/date'
+import { fromZonedTime } from 'date-fns-tz'
 
 export async function dailyGoalRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
@@ -57,44 +57,70 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
     return reply.status(200).send({ dailyGoal })
   })
 
-  app.get('/summary', async (_, reply) => {
-    const today = new Date()
+  app.get('/summary', async (request, reply) => {
+    try {
+      const schema = z.object({
+        startDate: z
+          .string({
+            error: 'Start date is required',
+          })
+          .regex(/^\d{4}-\d{2}-\d{2}$/, {
+            error: 'Invalid date format. Please use YYYY-MM-DD format.',
+          }),
+        timezone: z.string({
+          error: 'timezone is required.',
+        }),
+      })
 
-    const todayInitial = getDateToCompare(startOfDay(today))
-    const todayEnd = getDateToCompare(endOfDay(today))
+      const { startDate, timezone } = schema.parse(request.query)
 
-    const allDailyMeals = await knex('meals')
-      .select(
-        'food.name',
-        'meals.amount',
-        'food.protein_per_portion',
-        'food.portion_amount',
-        'food.portion_type',
-        'meals.created_at',
-      )
-      .innerJoin('food', 'meals.food_id', 'food.id')
-      .whereBetween('meals.created_at', [todayInitial, todayEnd])
+      // Interpretamos a data como midnight no timezone especificado
+      const dateString = `${startDate}T00:00:00`
+      const localDate = parseISO(dateString)
+      const startOfDate = startOfDay(localDate)
 
-    const dailyGoal = await knex('daily_goal').first()
+      const utcInitialDate = fromZonedTime(startOfDate, timezone)
+      const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
 
-    const proteinConsumed = allDailyMeals
-      .reduce((acc, meal) => {
-        if (meal.portion_type === 'unit') {
-          return acc + meal.protein_per_portion * meal.amount
-        }
+      const allDailyMeals = await knex('meals')
+        .select(
+          'food.name',
+          'meals.amount',
+          'food.protein_per_portion',
+          'food.portion_amount',
+          'food.portion_type',
+          'meals.created_at',
+        )
+        .innerJoin('food', 'meals.food_id', 'food.id')
+        .whereBetween('meals.created_at', [utcInitialDate, utcEndDate])
 
-        const proteinPerPortion =
-          (meal.protein_per_portion * meal.amount) / meal.portion_amount
+      const dailyGoal = await knex('daily_goal').first()
 
-        return acc + proteinPerPortion
-      }, 0)
-      .toFixed(1)
+      const proteinConsumed = allDailyMeals
+        .reduce((acc, meal) => {
+          if (meal.portion_type === 'unit') {
+            return acc + meal.protein_per_portion * meal.amount
+          }
 
-    const achieved = proteinConsumed >= Number(dailyGoal?.protein)
+          const proteinPerPortion =
+            (meal.protein_per_portion * meal.amount) / meal.portion_amount
 
-    return reply.status(200).send({
-      proteinConsumed: Number(proteinConsumed),
-      achieved,
-    })
+          return acc + proteinPerPortion
+        }, 0)
+        .toFixed(1)
+
+      const achieved = proteinConsumed >= Number(dailyGoal?.protein)
+
+      return reply.status(200).send({
+        proteinConsumed: Number(proteinConsumed),
+        achieved,
+      })
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({
+          error: JSON.parse(error.message),
+        })
+      }
+    }
   })
 }
