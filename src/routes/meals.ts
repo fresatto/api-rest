@@ -4,7 +4,6 @@ import { FastifyInstance } from 'fastify'
 import { randomUUID } from 'node:crypto'
 
 import { knex } from '../database'
-import { getProteinConsumedByMeal } from '../utils/meals'
 import { addHours, startOfDay, parseISO } from 'date-fns'
 import { fromZonedTime } from 'date-fns-tz'
 
@@ -32,41 +31,11 @@ export async function mealsRoutes(app: FastifyInstance) {
       const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
 
       const meals = await knex('meals')
-        .select([
-          'meals.id',
-          'meals.amount',
-          'meals.created_at',
-          'food.name',
-          'food.portion_type',
-          'food.portion_amount',
-          'food.protein_per_portion',
-        ])
-        .innerJoin('food', 'meals.food_id', 'food.id')
+        .select('*')
         .whereBetween('meals.created_at', [utcInitialDate, utcEndDate])
         .orderBy('meals.created_at', 'asc')
 
-      const mealsWithFoodDetails = meals
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((meal: any) => {
-          const { id, amount, created_at } = meal
-
-          const proteinConsumed = getProteinConsumedByMeal(meal)
-
-          return {
-            id,
-            amount,
-            created_at,
-            proteinConsumed,
-            food: {
-              name: meal.name,
-              portion_type: meal.portion_type,
-              portion_amount: meal.portion_amount,
-              protein_per_portion: meal.protein_per_portion,
-            },
-          }
-        })
-
-      return reply.status(200).send({ meals: mealsWithFoodDetails })
+      return reply.status(200).send({ meals })
     } catch (error) {
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
@@ -82,18 +51,45 @@ export async function mealsRoutes(app: FastifyInstance) {
     try {
       const createMealBodySchema = z.object({
         name: z.string('name is required').min(1, 'name is required'),
+        items: z
+          .array(
+            z.object({
+              food_id: z
+                .uuid('food_id must be a valid UUID')
+                .min(1, 'food_id is required'),
+              amount: z
+                .number('amount is required')
+                .min(1, 'amount is required'),
+            }),
+            { error: 'items must be an array' },
+          )
+          .min(1, 'items must have at least one item'),
       })
 
-      const { name } = createMealBodySchema.parse(request.body)
+      const { name, items } = createMealBodySchema.parse(request.body)
 
-      const meal = await knex('meals')
+      const [meal] = await knex('meals')
         .insert({
           id: randomUUID(),
           name,
         })
         .returning('*')
 
-      return reply.status(201).send(meal)
+      const mealFoods = items.map((item) => {
+        return {
+          id: randomUUID(),
+          meal_id: meal.id,
+          food_id: item.food_id,
+          amount: item.amount,
+        }
+      })
+
+      await knex('meal_foods').insert(mealFoods)
+
+      return reply.status(201).send({
+        ...meal,
+        items,
+      })
     } catch (error) {
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
