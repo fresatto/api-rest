@@ -62,7 +62,7 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
       const schema = z.object({
         startDate: z
           .string({
-            error: 'Start date is required',
+            error: 'startDate is required.',
           })
           .regex(/^\d{4}-\d{2}-\d{2}$/, {
             error: 'Invalid date format. Please use YYYY-MM-DD format.',
