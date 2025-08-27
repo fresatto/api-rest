@@ -30,8 +30,49 @@ export function consumedMealsRoutes(app: FastifyInstance) {
       const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
 
       const meals = await knex('consumed_meals')
-        .select('*')
-        .whereBetween('created_at', [utcInitialDate, utcEndDate])
+        .select(
+          'consumed_meals.id',
+          'consumed_meals.created_at',
+          'consumed_meals.meal_id',
+          'meals.name as meal_name',
+          knex.raw(`
+            JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'id', meal_foods.id,
+                'food_id', food.id,
+                'food_name', food.name,
+                'portion_type', food.portion_type,
+                'portion_amount', food.portion_amount,
+                'protein_per_portion', food.protein_per_portion,
+                'amount', meal_foods.amount,
+                'calculated_protein', ROUND(
+                  (food.protein_per_portion * meal_foods.amount / food.portion_amount)::numeric,
+                  2
+                )
+              )
+              ORDER BY meal_foods.created_at
+            ) as items
+          `),
+          knex.raw(`
+            ROUND(
+              SUM(
+                (food.protein_per_portion * meal_foods.amount / food.portion_amount)
+              )::numeric,
+              2
+            ) as total_protein
+          `),
+        )
+        .innerJoin('meals', 'consumed_meals.meal_id', 'meals.id')
+        .innerJoin('meal_foods', 'consumed_meals.meal_id', 'meal_foods.meal_id')
+        .innerJoin('food', 'meal_foods.food_id', 'food.id')
+        .groupBy(
+          'consumed_meals.id',
+          'consumed_meals.created_at',
+          'consumed_meals.meal_id',
+          'meals.name',
+        )
+        .whereBetween('consumed_meals.created_at', [utcInitialDate, utcEndDate])
+        .orderBy('consumed_meals.created_at', 'desc')
 
       return reply.status(200).send({ meals })
     } catch (error) {
@@ -60,8 +101,6 @@ export function consumedMealsRoutes(app: FastifyInstance) {
       if (!meal) {
         return reply.status(404).send({ message: 'Meal not found' })
       }
-
-      console.log({ meal_id, meal })
 
       const consumedMeal = await knex('consumed_meals')
         .insert({

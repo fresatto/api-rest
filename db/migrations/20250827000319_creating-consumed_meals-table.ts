@@ -3,7 +3,7 @@ import type { Knex } from 'knex'
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('consumed_meals', (table) => {
     table.uuid('id').primary()
-    table.uuid('meal_id').references('id').inTable('meals')
+    table.uuid('meal_id').references('id').inTable('meals').onDelete('CASCADE')
     table.timestamp('created_at').defaultTo(knex.fn.now())
     table.timestamp('updated_at').defaultTo(knex.fn.now())
   })
