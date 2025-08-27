@@ -7,6 +7,7 @@ import { dailyGoalRoutes } from './routes/daily-goal'
 import { foodRoutes } from './routes/food'
 import { mealsRoutes } from './routes/meals'
 import { weekProgressRoutes } from './routes/week-progress'
+import { consumedMealsRoutes } from './routes/consumed-meals'
 
 export const app = fastify()
 
@@ -30,6 +31,10 @@ app.register(foodRoutes, {
 
 app.register(mealsRoutes, {
   prefix: 'meals',
+})
+
+app.register(consumedMealsRoutes, {
+  prefix: 'consumed-meals',
 })
 
 app.register(weekProgressRoutes, {

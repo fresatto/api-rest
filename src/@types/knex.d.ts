@@ -46,5 +46,12 @@ declare module 'knex/types/tables' {
       food_id: string
       amount: number
     }
+
+    consumed_meals: {
+      id: string
+      meal_id: string
+      created_at: string
+      updated_at: string
+    }
   }
 }
