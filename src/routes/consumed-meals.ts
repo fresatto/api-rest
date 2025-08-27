@@ -32,9 +32,8 @@ export function consumedMealsRoutes(app: FastifyInstance) {
       const meals = await knex('consumed_meals')
         .select(
           'consumed_meals.id',
+          'meals.name as name',
           'consumed_meals.created_at',
-          'consumed_meals.meal_id',
-          'meals.name as meal_name',
           knex.raw(`
             JSON_AGG(
               JSON_BUILD_OBJECT(
