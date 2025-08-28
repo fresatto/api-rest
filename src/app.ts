@@ -12,6 +12,7 @@ import { consumedMealsRoutes } from './routes/consumed-meals'
 export const app = fastify()
 
 app.register(fastifyCookie)
+
 app.register(cors, {
   origin: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify'
-import { addHours, startOfDay, parseISO } from 'date-fns'
+import { addHours, startOfDay, parseISO, format } from 'date-fns'
 import { fromZonedTime } from 'date-fns-tz'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -9,16 +9,8 @@ import { knex } from '../database'
 export function consumedMealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
     try {
-      const schema = z.object({
-        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
-          error: 'Invalid date format. Please use YYYY-MM-DD format.',
-        }),
-        timezone: z.string({
-          error: 'Invalid timezone. Please use a valid timezone.',
-        }),
-      })
-
-      const { startDate, timezone } = schema.parse(request.query)
+      const timezone = request.headers['x-timezone'] as string
+      const startDate = format(new Date(), 'yyyy-MM-dd')
 
       // Interpretamos a data como midnight no timezone especificado
       const dateString = `${startDate}T00:00:00`
