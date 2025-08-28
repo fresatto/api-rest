@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { FastifyInstance } from 'fastify'
-import { addHours, parseISO, startOfDay } from 'date-fns'
+import { addHours, format, parseISO, startOfDay } from 'date-fns'
 
 import { knex } from '../database'
 import { fromZonedTime } from 'date-fns-tz'
@@ -59,20 +59,8 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
 
   app.get('/summary', async (request, reply) => {
     try {
-      const schema = z.object({
-        startDate: z
-          .string({
-            error: 'startDate is required.',
-          })
-          .regex(/^\d{4}-\d{2}-\d{2}$/, {
-            error: 'Invalid date format. Please use YYYY-MM-DD format.',
-          }),
-        timezone: z.string({
-          error: 'timezone is required.',
-        }),
-      })
-
-      const { startDate, timezone } = schema.parse(request.query)
+      const startDate = format(new Date(), 'yyyy-MM-dd')
+      const timezone = request.headers['x-timezone'] as string
 
       // Interpretamos a data como midnight no timezone especificado
       const dateString = `${startDate}T00:00:00`
@@ -82,32 +70,55 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
       const utcInitialDate = fromZonedTime(startOfDate, timezone)
       const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
 
-      const allDailyMeals = await knex('meals')
+      const allDailyMeals = await knex('consumed_meals')
         .select(
-          'food.name',
-          'meals.amount',
-          'food.protein_per_portion',
-          'food.portion_amount',
-          'food.portion_type',
-          'meals.created_at',
+          'consumed_meals.id',
+          'meals.name as name',
+          'consumed_meals.created_at',
+          knex.raw(`
+          JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', meal_foods.id,
+              'food_id', food.id,
+              'food_name', food.name,
+              'portion_type', food.portion_type,
+              'portion_amount', food.portion_amount,
+              'protein_per_portion', food.protein_per_portion,
+              'amount', meal_foods.amount,
+              'calculated_protein', ROUND(
+                (food.protein_per_portion * meal_foods.amount / food.portion_amount)::numeric,
+                2
+              )
+            )
+            ORDER BY meal_foods.created_at
+          ) as items
+        `),
+          knex.raw(`
+          ROUND(
+            SUM(
+              (food.protein_per_portion * meal_foods.amount / food.portion_amount)
+            )::numeric,
+            2
+          ) as total_protein
+        `),
         )
-        .innerJoin('food', 'meals.food_id', 'food.id')
-        .whereBetween('meals.created_at', [utcInitialDate, utcEndDate])
+        .innerJoin('meals', 'consumed_meals.meal_id', 'meals.id')
+        .innerJoin('meal_foods', 'consumed_meals.meal_id', 'meal_foods.meal_id')
+        .innerJoin('food', 'meal_foods.food_id', 'food.id')
+        .groupBy(
+          'consumed_meals.id',
+          'consumed_meals.created_at',
+          'consumed_meals.meal_id',
+          'meals.name',
+        )
+        .whereBetween('consumed_meals.created_at', [utcInitialDate, utcEndDate])
+        .orderBy('consumed_meals.created_at', 'desc')
 
       const dailyGoal = await knex('daily_goal').first()
 
-      const proteinConsumed = allDailyMeals
-        .reduce((acc, meal) => {
-          if (meal.portion_type === 'unit') {
-            return acc + meal.protein_per_portion * meal.amount
-          }
-
-          const proteinPerPortion =
-            (meal.protein_per_portion * meal.amount) / meal.portion_amount
-
-          return acc + proteinPerPortion
-        }, 0)
-        .toFixed(1)
+      const proteinConsumed = allDailyMeals.reduce((acc, meal) => {
+        return acc + Number(meal.total_protein)
+      }, 0)
 
       const achieved = proteinConsumed >= Number(dailyGoal?.protein)
 
@@ -121,6 +132,10 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
           error: JSON.parse(error.message),
         })
       }
+
+      return reply.status(500).send({
+        error: 'Internal server error',
+      })
     }
   })
 }
