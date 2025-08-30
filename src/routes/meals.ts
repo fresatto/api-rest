@@ -4,10 +4,26 @@ import { randomUUID } from 'node:crypto'
 
 import { knex } from '../database'
 
+interface CountResult {
+  count: string | number
+}
+
 export async function mealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
     try {
-      const meals = await knex('meals')
+      const getMealsQuerySchema = z.object({
+        page: z.coerce.number().min(1).default(1),
+        pageSize: z.coerce.number().min(1).max(100).default(10),
+        search: z.string().optional(),
+      })
+
+      const { page, pageSize, search } = getMealsQuerySchema.parse(
+        request.query,
+      )
+
+      const offset = (page - 1) * pageSize
+
+      let baseQuery = knex('meals')
         .select(
           'meals.id',
           'meals.name',
@@ -53,10 +69,42 @@ export async function mealsRoutes(app: FastifyInstance) {
         )
         .leftJoin('meal_foods', 'meals.id', 'meal_foods.meal_id')
         .leftJoin('food', 'meal_foods.food_id', 'food.id')
+
+      // Aplicar filtro de busca se fornecido
+      if (search) {
+        baseQuery = baseQuery.where('meals.name', 'ilike', `%${search}%`)
+      }
+
+      // Contar total de registros para paginação
+      const countQuery = knex('meals')
+      if (search) {
+        countQuery.where('meals.name', 'ilike', `%${search}%`)
+      }
+      const countResult = await countQuery.count('* as count')
+      const totalCount = Number(
+        (countResult[0] as unknown as CountResult).count,
+      )
+
+      // Buscar refeições com paginação
+      const meals = await baseQuery
         .groupBy('meals.id', 'meals.name', 'meals.created_at')
         .orderBy('meals.created_at', 'desc')
+        .limit(pageSize)
+        .offset(offset)
 
-      return reply.status(200).send({ meals })
+      const totalPages = Math.ceil(totalCount / pageSize)
+
+      return reply.status(200).send({
+        meals,
+        pagination: {
+          currentPage: page,
+          pageSize,
+          totalCount,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      })
     } catch (error) {
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
