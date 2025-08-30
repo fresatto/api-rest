@@ -1,35 +1,12 @@
 import { z } from 'zod'
 import { FastifyInstance } from 'fastify'
-
 import { randomUUID } from 'node:crypto'
 
 import { knex } from '../database'
-import { addHours, startOfDay, parseISO } from 'date-fns'
-import { fromZonedTime } from 'date-fns-tz'
 
 export async function mealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
     try {
-      const schema = z.object({
-        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
-          error: 'Invalid date format. Please use YYYY-MM-DD format.',
-        }),
-        timezone: z.string({
-          error: 'Invalid timezone. Please use a valid timezone.',
-        }),
-      })
-
-      const { startDate, timezone } = schema.parse(request.query)
-
-      // Interpretamos a data como midnight no timezone especificado
-      const dateString = `${startDate}T00:00:00`
-      const localDate = parseISO(dateString)
-      const startOfDate = startOfDay(localDate)
-
-      // Convertemos para UTC considerando o timezone
-      const utcInitialDate = fromZonedTime(startOfDate, timezone)
-      const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
-
       const meals = await knex('meals')
         .select(
           'meals.id',
@@ -78,7 +55,6 @@ export async function mealsRoutes(app: FastifyInstance) {
         .leftJoin('food', 'meal_foods.food_id', 'food.id')
         .groupBy('meals.id', 'meals.name', 'meals.created_at')
         .orderBy('meals.created_at', 'asc')
-        .whereBetween('meals.created_at', [utcInitialDate, utcEndDate])
 
       return reply.status(200).send({ meals })
     } catch (error) {
