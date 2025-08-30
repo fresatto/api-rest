@@ -13,15 +13,13 @@ export async function mealsRoutes(app: FastifyInstance) {
     try {
       const getMealsQuerySchema = z.object({
         page: z.coerce.number().min(1).default(1),
-        pageSize: z.coerce.number().min(1).max(100).default(10),
+        size: z.coerce.number().min(1).max(100).default(10),
         search: z.string().optional(),
       })
 
-      const { page, pageSize, search } = getMealsQuerySchema.parse(
-        request.query,
-      )
+      const { page, size, search } = getMealsQuerySchema.parse(request.query)
 
-      const offset = (page - 1) * pageSize
+      const offset = (page - 1) * size
 
       let baseQuery = knex('meals')
         .select(
@@ -81,7 +79,7 @@ export async function mealsRoutes(app: FastifyInstance) {
         countQuery.where('meals.name', 'ilike', `%${search}%`)
       }
       const countResult = await countQuery.count('* as count')
-      const totalCount = Number(
+      const totalItems = Number(
         (countResult[0] as unknown as CountResult).count,
       )
 
@@ -89,17 +87,15 @@ export async function mealsRoutes(app: FastifyInstance) {
       const meals = await baseQuery
         .groupBy('meals.id', 'meals.name', 'meals.created_at')
         .orderBy('meals.created_at', 'desc')
-        .limit(pageSize)
+        .limit(size)
         .offset(offset)
 
-      const totalPages = Math.ceil(totalCount / pageSize)
+      const totalPages = Math.ceil(totalItems / size)
 
       return reply.status(200).send({
         meals,
         pagination: {
-          currentPage: page,
-          pageSize,
-          totalCount,
+          totalItems,
           totalPages,
           hasNextPage: page < totalPages,
           hasPreviousPage: page > 1,
