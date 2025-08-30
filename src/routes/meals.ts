@@ -54,7 +54,7 @@ export async function mealsRoutes(app: FastifyInstance) {
         .leftJoin('meal_foods', 'meals.id', 'meal_foods.meal_id')
         .leftJoin('food', 'meal_foods.food_id', 'food.id')
         .groupBy('meals.id', 'meals.name', 'meals.created_at')
-        .orderBy('meals.created_at', 'asc')
+        .orderBy('meals.created_at', 'desc')
 
       return reply.status(200).send({ meals })
     } catch (error) {
