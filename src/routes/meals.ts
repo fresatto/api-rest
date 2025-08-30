@@ -1,72 +1,106 @@
 import { z } from 'zod'
 import { FastifyInstance } from 'fastify'
-
 import { randomUUID } from 'node:crypto'
 
 import { knex } from '../database'
-import { getProteinConsumedByMeal } from '../utils/meals'
-import { addHours, startOfDay, parseISO } from 'date-fns'
-import { fromZonedTime } from 'date-fns-tz'
+
+interface CountResult {
+  count: string | number
+}
 
 export async function mealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
     try {
-      const schema = z.object({
-        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
-          error: 'Invalid date format. Please use YYYY-MM-DD format.',
-        }),
-        timezone: z.string({
-          error: 'Invalid timezone. Please use a valid timezone.',
-        }),
+      const getMealsQuerySchema = z.object({
+        page: z.coerce.number().min(1).default(1),
+        size: z.coerce.number().min(1).max(100).default(10),
+        search: z.string().optional(),
       })
 
-      const { startDate, timezone } = schema.parse(request.query)
+      const { page, size, search } = getMealsQuerySchema.parse(request.query)
 
-      // Interpretamos a data como midnight no timezone especificado
-      const dateString = `${startDate}T00:00:00`
-      const localDate = parseISO(dateString)
-      const startOfDate = startOfDay(localDate)
+      const offset = (page - 1) * size
 
-      // Convertemos para UTC considerando o timezone
-      const utcInitialDate = fromZonedTime(startOfDate, timezone)
-      const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
-
-      const meals = await knex('meals')
-        .select([
+      let baseQuery = knex('meals')
+        .select(
           'meals.id',
-          'meals.amount',
+          'meals.name',
           'meals.created_at',
-          'food.name',
-          'food.portion_type',
-          'food.portion_amount',
-          'food.protein_per_portion',
-        ])
-        .innerJoin('food', 'meals.food_id', 'food.id')
-        .whereBetween('meals.created_at', [utcInitialDate, utcEndDate])
-        .orderBy('meals.created_at', 'asc')
+          knex.raw(`
+            COALESCE(
+              JSON_AGG(
+                CASE 
+                  WHEN food.id IS NOT NULL THEN
+                    JSON_BUILD_OBJECT(
+                      'food_id', food.id,
+                      'food_name', food.name,
+                      'portion_type', food.portion_type,
+                      'portion_amount', food.portion_amount,
+                      'protein_per_portion', food.protein_per_portion,
+                      'amount', meal_foods.amount,
+                      'calculated_protein', ROUND(
+                        (food.protein_per_portion * meal_foods.amount / food.portion_amount)::numeric, 
+                        2
+                      )
+                    )
+                  ELSE NULL
+                END
+              ) FILTER (WHERE food.id IS NOT NULL),
+              '[]'::json
+            ) as items
+          `),
+          knex.raw(`
+            COALESCE(
+              ROUND(
+                SUM(
+                  CASE 
+                    WHEN food.id IS NOT NULL THEN 
+                      (food.protein_per_portion * meal_foods.amount / food.portion_amount)
+                    ELSE 0 
+                  END
+                )::numeric, 
+                2
+              ), 
+              0
+            ) as total_protein
+          `),
+        )
+        .leftJoin('meal_foods', 'meals.id', 'meal_foods.meal_id')
+        .leftJoin('food', 'meal_foods.food_id', 'food.id')
 
-      const mealsWithFoodDetails = meals
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .map((meal: any) => {
-          const { id, amount, created_at } = meal
+      // Aplicar filtro de busca se fornecido
+      if (search) {
+        baseQuery = baseQuery.where('meals.name', 'ilike', `%${search}%`)
+      }
 
-          const proteinConsumed = getProteinConsumedByMeal(meal)
+      // Contar total de registros para paginação
+      const countQuery = knex('meals')
+      if (search) {
+        countQuery.where('meals.name', 'ilike', `%${search}%`)
+      }
+      const countResult = await countQuery.count('* as count')
+      const totalItems = Number(
+        (countResult[0] as unknown as CountResult).count,
+      )
 
-          return {
-            id,
-            amount,
-            created_at,
-            proteinConsumed,
-            food: {
-              name: meal.name,
-              portion_type: meal.portion_type,
-              portion_amount: meal.portion_amount,
-              protein_per_portion: meal.protein_per_portion,
-            },
-          }
-        })
+      // Buscar refeições com paginação
+      const meals = await baseQuery
+        .groupBy('meals.id', 'meals.name', 'meals.created_at')
+        .orderBy('meals.created_at', 'desc')
+        .limit(size)
+        .offset(offset)
 
-      return reply.status(200).send({ meals: mealsWithFoodDetails })
+      const totalPages = Math.ceil(totalItems / size)
+
+      return reply.status(200).send({
+        meals,
+        pagination: {
+          totalItems,
+          totalPages,
+          hasNextPage: page < totalPages,
+          hasPreviousPage: page > 1,
+        },
+      })
     } catch (error) {
       if (error instanceof z.ZodError) {
         return reply.status(400).send({
@@ -74,35 +108,66 @@ export async function mealsRoutes(app: FastifyInstance) {
         })
       }
 
-      return reply.status(500).send({ message: 'Internal server error' })
+      return reply
+        .status(500)
+        .send({ message: 'Internal server error' + error })
     }
   })
 
   app.post('/', async (request, reply) => {
-    const createMealBodySchema = z.object({
-      food_id: z.string(),
-      amount: z.number(),
-    })
+    try {
+      const createMealBodySchema = z.object({
+        name: z.string('name is required').min(1, 'name is required'),
+        items: z
+          .array(
+            z.object({
+              food_id: z
+                .uuid('food_id must be a valid UUID')
+                .min(1, 'food_id is required'),
+              amount: z
+                .number('amount is required')
+                .min(1, 'amount is required'),
+            }),
+            { error: 'items must be an array' },
+          )
+          .min(1, 'items must have at least one item'),
+      })
 
-    const { food_id, amount } = createMealBodySchema.parse(request.body)
+      const { name, items } = createMealBodySchema.parse(request.body)
 
-    const food = await knex('food').where('id', food_id).first()
+      const [meal] = await knex('meals')
+        .insert({
+          id: randomUUID(),
+          name,
+        })
+        .returning('*')
 
-    if (!food) {
-      return reply.status(400).send({ message: 'Food not found' })
+      const mealFoods = items.map((item) => {
+        return {
+          id: randomUUID(),
+          meal_id: meal.id,
+          food_id: item.food_id,
+          amount: item.amount,
+        }
+      })
+
+      await knex('meal_foods').insert(mealFoods)
+
+      return reply.status(201).send({
+        ...meal,
+        items,
+      })
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return reply.status(400).send({
+          error: JSON.parse(error.message)[0].message,
+        })
+      }
+
+      return reply
+        .status(500)
+        .send({ message: 'Internal server error' + error })
     }
-
-    const meal = {
-      id: randomUUID(),
-      food_id,
-      amount,
-    }
-
-    await knex('meals').insert({
-      ...meal,
-    })
-
-    return reply.status(201).send()
   })
 
   app.delete('/:id', async (request, reply) => {

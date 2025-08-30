@@ -3,8 +3,7 @@ import { Knex } from 'knex'
 
 export type Meal = {
   id: string
-  food_id: string
-  amount: number
+  name: string
   created_at: string
 }
 
@@ -40,5 +39,19 @@ declare module 'knex/types/tables' {
     food: Food
 
     meals: Meal
+
+    meal_foods: {
+      id: string
+      meal_id: string
+      food_id: string
+      amount: number
+    }
+
+    consumed_meals: {
+      id: string
+      meal_id: string
+      created_at: string
+      updated_at: string
+    }
   }
 }
