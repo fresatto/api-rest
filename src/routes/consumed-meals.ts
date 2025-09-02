@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 import { addHours, startOfDay, parseISO, format } from 'date-fns'
-import { fromZonedTime } from 'date-fns-tz'
+import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
@@ -10,7 +10,7 @@ export function consumedMealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
     try {
       const timezone = request.headers['x-timezone'] as string
-      const startDate = format(new Date(), 'yyyy-MM-dd')
+      const startDate = format(toZonedTime(new Date(), timezone), 'yyyy-MM-dd')
 
       // Interpretamos a data como midnight no timezone especificado
       const dateString = `${startDate}T00:00:00`
