@@ -1,9 +1,8 @@
 import { z } from 'zod'
 import { FastifyInstance } from 'fastify'
-import { addHours, format, parseISO, startOfDay } from 'date-fns'
 
 import { knex } from '../database'
-import { fromZonedTime } from 'date-fns-tz'
+import { getCurrentDateInitialAndEndDateInTimezone } from '../utils/date'
 
 export async function dailyGoalRoutes(app: FastifyInstance) {
   app.post('/', async (request, reply) => {
@@ -59,16 +58,9 @@ export async function dailyGoalRoutes(app: FastifyInstance) {
 
   app.get('/summary', async (request, reply) => {
     try {
-      const startDate = format(new Date(), 'yyyy-MM-dd')
       const timezone = request.headers['x-timezone'] as string
-
-      // Interpretamos a data como midnight no timezone especificado
-      const dateString = `${startDate}T00:00:00`
-      const localDate = parseISO(dateString)
-      const startOfDate = startOfDay(localDate)
-
-      const utcInitialDate = fromZonedTime(startOfDate, timezone)
-      const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
+      const { utcInitialDate, utcEndDate } =
+        getCurrentDateInitialAndEndDateInTimezone(timezone)
 
       const allDailyMeals = await knex('consumed_meals')
         .select(

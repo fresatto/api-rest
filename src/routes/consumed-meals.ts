@@ -1,27 +1,17 @@
 import { FastifyInstance } from 'fastify'
-import { addHours, startOfDay, parseISO, format } from 'date-fns'
-import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 
 import { knex } from '../database'
+import { getCurrentDateInitialAndEndDateInTimezone } from '../utils/date'
 
 export function consumedMealsRoutes(app: FastifyInstance) {
   app.get('/', async (request, reply) => {
     try {
       const timezone = request.headers['x-timezone'] as string
-      const startDate = format(toZonedTime(new Date(), timezone), 'yyyy-MM-dd')
 
-      // Interpretamos a data como midnight no timezone especificado
-      const dateString = `${startDate}T00:00:00`
-      const localDate = parseISO(dateString)
-      const startOfDate = startOfDay(localDate)
-
-      // Convertemos para UTC considerando o timezone
-      const utcInitialDate = fromZonedTime(startOfDate, timezone)
-      const utcEndDate = fromZonedTime(addHours(startOfDate, 24), timezone)
-
-      console.log({ utcInitialDate, utcEndDate, timezone, startOfDate })
+      const { utcInitialDate, utcEndDate } =
+        getCurrentDateInitialAndEndDateInTimezone(timezone)
 
       const meals = await knex('consumed_meals')
         .select(
